@@ -1,8 +1,3 @@
-/* To the CUSTOMERS table, add, CUSTOMER_EMAIL, CUSTOMER_LOGIN , CUSTOMER_PASSWORD. Login can be the same as the email, but no two customers can have the same
-login.*/
-
---T1. 
-
 ALTER TABLE CUSTOMERS
 ADD CUSTOMER_PLAN VARCHAR(6) NOT NULL
 ADD CUSTOMER_EMAIL VARCHAR2(50) UNIQUE

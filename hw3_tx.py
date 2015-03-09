@@ -68,7 +68,7 @@ class User:
         print 'I found these songs that match your request:'
         for i in songs:
             if search.lower() in i[0].lower():
-                print i[0] + '\t\t\t\t\t' + 'ALBUM ONLY?' + i[1]
+                print 'Song ID:' + i[2] + i[0] + '\t\t\t\t\t' + 'ALBUM ONLY?' + i[1]
         print ''
         print ''
         print 'Of these songs found, you have listened to:'
@@ -149,6 +149,40 @@ class User:
             elif choice == "3":
                 self.menu()
                 return None
+            
+    def play(self):
+        print '***'
+        cur.execute('SELECT STREAM_ID FROM STREAMS WHERE STREAM_ID = (SELECT MAX(STREAM_ID) FROM STREAMS)')
+        s_id = cur.fetchall()
+        s_id = s_id[0][0] + 1
+        choice = raw_input("Please type the Song ID to play a song: ")
+        cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + choice)
+        info = cur.fetchall()
+        if len(info) == 0:
+            print 'Sorry, that was an invalid Song I.D'
+            self.play()
+        info = info[0]
+        cur.execute('SELECT STREAM_ID FROM STREAMS WHERE CUSTOMER_ID = ' + self.id + " and STREAM_STATUS = 'ACTIVE'")
+        check = cur.fetchall()
+        if len(check) == 0:
+            sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+            cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
+            con.commit()
+            print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
+            opt = raw_input('Press 1 to quit: ')
+            if opt == "1":
+                return None
+
+        else:
+            cur.execute("UPDATE STREAMS SET STREAM_STATUS = 'INACTIVE' WHERE STREAM_ID = " + str(check[0][0]) )
+            con.commit()
+            sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+            cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
+            con.commit()
+            print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
+            opt = raw_input('Press 1 to quit: ')
+            if opt == "1":
+                return None
 
 def main():
     print '***'
@@ -163,8 +197,7 @@ def main():
         print '***                     ***'
         u.menu()
     else:
-        print 'Login Failed'
-        
+        print 'Login Failed'        
 
 main()
 cur.close()
