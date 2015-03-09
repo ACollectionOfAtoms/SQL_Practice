@@ -20,11 +20,13 @@ class User:
                 pass
 
     def menu(self):
+        print '***'
         print 'Welcome %s, what would you\nlike to do today?' % (self.login)
         print '(1) Search for a song'
         print '(2) Plan Options'
         print '(3) Play Music'
         print '(4) Exit'
+        option = 0
         option = raw_input('Please Select: ')
         print '***'
         if option == "1":
@@ -85,6 +87,68 @@ class User:
                 self.search()
             elif choice == "2":
                 self.menu()
+                return None
+    
+    def plan(self):
+        cur.execute('SELECT CUSTOMER_PLAN FROM CUSTOMERS WHERE CUSTOMER_ID ='+self.id)
+        plan = cur.fetchall()
+        plan = plan[0][0]
+        plans = ['GOLD','SILVER','BRONZE']
+        plans.pop(plans.index(plan))
+
+        print 'Your current plan is: %s' % (plan)
+        print 'Would you like to switch to one of these plans ?'
+        for i in range(len(plans)):
+            print '('+str(i + 1)+')' + ' ' + plans[i]
+        print '(3) No, take me back to the main menu!'
+        choice = 0
+        while choice != "1" or choice != "2" or choice != "3":
+            choice = raw_input("Enter your choice: ")
+
+            if choice == "1":
+                print "You've chosen the %s plan" %(plans[0])
+                cur.execute('SELECT PLAN_PLAYS, PLAN_FEE FROM PLANS WHERE PLAN_NAME = ' + '\''+plans[0]+'\'')
+                info = cur.fetchall()
+                print "This plan grants you %i plays, and cost $%s" % (info[0][0],info[0][1])
+                opt = 0
+                print "(1) Yes, I would like to change my plan."
+                print "(2) No, I'll keep my current plan."
+                while opt != "1" or opt != "2":
+                    opt = raw_input("Are you sure you want to choose this plan?: ")
+                    if opt == "1":
+                        cur.execute('UPDATE CUSTOMERS SET CUSTOMER_PLAN = ' + '\''+plans[0]+'\'' + 'WHERE CUSTOMER_ID =' + self.id)
+                        print ('Plan Successfully changed.')
+                        con.commit()
+                        self.plan()
+                        return None
+                    else:
+                        self.plan()
+                        return None
+                    
+
+            elif choice == "2":
+                print "You've chosen the %s plan" %(plans[1])
+                cur.execute('SELECT PLAN_PLAYS, PLAN_FEE FROM PLANS WHERE PLAN_NAME = ' + '\''+plans[1]+'\'')
+                info = cur.fetchall()
+                print "This plan grants you %i plays, and cost $%s" % (info[0][0],info[0][1])
+                opt = 0
+                print "(1) Yes, I would like to change my plan."
+                print "(2) No, I'll keep my current plan."
+                while opt != "1" or opt != "2":
+                    opt = raw_input("Are you sure you want to choose this plan?: ")
+                    if opt == "1":
+                        cur.execute('UPDATE CUSTOMERS SET CUSTOMER_PLAN = ' + '\''+plans[1]+'\'' + 'WHERE CUSTOMER_ID =' + self.id)
+                        con.commit()
+                        print ('Plan Successfully changed.')
+                        self.plan()
+                        return None
+                    else:
+                        self.plan()
+                        return None
+
+            elif choice == "3":
+                self.menu()
+                return None
 
 def main():
     print '***'
