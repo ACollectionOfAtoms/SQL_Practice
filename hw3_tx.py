@@ -56,26 +56,23 @@ class User:
         print 'I found these artist that match your request:'
         for i in artist:
             if search.lower() in i[0].lower():
-                print i[0]
-        print ''
+                print '\t' + i[0]
         print ''
         print 'I found these albums that match your request:'
         for i in titles:
             if search.lower() in i[0].lower():
-                print i[0]
-        print ''
+                print '\t' + i[0]
         print ''
         print 'I found these songs that match your request:'
         for i in songs:
             if search.lower() in i[0].lower():
-                print 'Song ID:' + i[2] + i[0] + '\t\t\t\t\t' + 'ALBUM ONLY?' + i[1]
-        print ''
+                print '\t' + 'Song ID: ' + str(i[2]) + '\t' + 'Song Name: ' + i[0].ljust(15) + '\t' + 'ALBUM ONLY?' + ': ' + i[1]
         print ''
         print 'Of these songs found, you have listened to:'
         for i in listened:
             for j in songs:
-                if i[0] == j[2]:
-                    print j[0]
+                if search.lower() in j[0].lower() and i[0] == j[2]:
+                    print '\t' + j[0]
         print '***'
         print 'Would you like to search again?'
         print "(1) Yes"
@@ -158,6 +155,7 @@ class User:
         choice = raw_input("Please type the Song ID to play a song: ")
         cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + choice)
         info = cur.fetchall()
+        cur.execute('SELECT SONG_ALBUM_ONLY FROM SONGS WHERE SONG_ID = ' + choice ) 
         if len(info) == 0:
             print 'Sorry, that was an invalid Song I.D'
             self.play()
@@ -169,7 +167,7 @@ class User:
             cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
             con.commit()
             print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
-            opt = raw_input('Press 1 to quit: ')
+            opt = raw_input('Press (1) to LISTEN TO A NEW SONG')
             if opt == "1":
                 return None
 
@@ -183,7 +181,7 @@ class User:
             opt = raw_input('Press 1 to quit: ')
             if opt == "1":
                 return None
-
+        
 def main():
     print '***'
     print "Welcome to Groovy-Pandorify-Shark!"
