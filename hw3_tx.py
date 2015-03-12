@@ -31,10 +31,13 @@ class User:
         print '***'
         if option == "1":
             self.search()
+            return None
         elif option == "2":
             self.plan()
+            return None
         elif option == "3":
             self.play()
+            return None
         elif option == "4":
             return None
     
@@ -82,6 +85,7 @@ class User:
             choice = raw_input("Enter your choice: ")
             if choice == "1":
                 self.search()
+                return None
             elif choice == "2":
                 self.menu()
                 return None
@@ -149,39 +153,166 @@ class User:
             
     def play(self):
         print '***'
+        #Get the newest Stream_ID and increment it by 1.
         cur.execute('SELECT STREAM_ID FROM STREAMS WHERE STREAM_ID = (SELECT MAX(STREAM_ID) FROM STREAMS)')
         s_id = cur.fetchall()
         s_id = s_id[0][0] + 1
+        
+        #Inquire.
         choice = raw_input("Please type the Song ID to play a song: ")
-        cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + choice)
+
+        # Gather 0 Songname, 1 Album ID, 2 Album Title,  3 Artist
+        cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist from songs s left join items i on s.item_id = i.item_id where song_id = ' + choice)
         info = cur.fetchall()
-        cur.execute('SELECT SONG_ALBUM_ONLY FROM SONGS WHERE SONG_ID = ' + choice ) 
+        #extract tuple from list.
+        info = info[0]
+        
+        # Check if Song Id is valid.
         if len(info) == 0:
             print 'Sorry, that was an invalid Song I.D'
             self.play()
-        info = info[0]
+
+
+        # Is it album only?
+        cur.execute('SELECT SONG_ALBUM_ONLY FROM SONGS WHERE SONG_ID = ' + choice )
+        albumonly = cur.fetchall()
+        # Extract string. 
+        albumonly = albumonly[0][0]
+        
+        # Check if there is a stream that is already active.
         cur.execute('SELECT STREAM_ID FROM STREAMS WHERE CUSTOMER_ID = ' + self.id + " and STREAM_STATUS = 'ACTIVE'")
         check = cur.fetchall()
-        if len(check) == 0:
-            sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
-            cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
-            con.commit()
-            print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
-            opt = raw_input('Press (1) to LISTEN TO A NEW SONG')
-            if opt == "1":
-                return None
 
+        #if none found... Continue to play
+        if len(check) == 0:
+            if albumonly == 'YES':
+                #Get album id
+                cur.execute('SELECT ITEM_ID FROM SONGS WHERE SONG_ID = ' + choice)
+                itemid = cur.fetchall()
+                itemid = str(itemid[0][0])
+                #Get songs on album
+                cur.execute('SELECT SONG_ID FROM SONGS WHERE ITEM_ID = ' + itemid)
+                album = cur.fetchall()
+                #Store last song, then gather all songs but the last.
+                lastsong = album[-1]
+                lastsong = str(lastsong[0])
+                songs = album[:-1]
+                for song in songs:
+                    cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + str(song[0]))
+                    info = cur.fetchall()
+                    info = info[0]
+                    #make the song active
+                    sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+                    cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(song[0]))
+                    con.commit()
+                    print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
+                    #Deactivate it
+                    cur.execute('SELECT STREAM_ID FROM STREAMS WHERE CUSTOMER_ID = ' + self.id + " and STREAM_STATUS = 'ACTIVE'")
+                    check = cur.fetchall()
+                    cur.execute("UPDATE STREAMS SET STREAM_STATUS = 'INACTIVE' WHERE STREAM_ID = " + str(check[0][0]) )
+                    con.commit()
+                    #increment Stream ID!
+                    s_id += 1
+
+                #play last song. 
+                cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + lastsong)
+                info = cur.fetchall()
+                #extract tuple from list.
+                info = info[0]
+
+                sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+                cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(lastsong))
+                con.commit()
+                print '(1) Main Menu (2) Play Another Song (3) Exit'
+                opt = raw_input('Select: ')
+                if opt == "1":
+                    self.menu()
+                    return None
+                if opt == "2":
+                    self.play()
+                    return None
+                if opt == "3":
+                    return None
+
+            else:
+                sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+                cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
+                con.commit()
+                print '(1) Main Menu (2) Play Another Song (3) Exit'
+                opt = raw_input('Select: ')
+                if opt == "1":
+                    self.menu()
+                    return None
+                if opt == "2":
+                    self.play()
+                    return None
+                if opt == "3":
+                    return None
+
+        # If an active stream is found, set it to inactive, and then play.
         else:
             cur.execute("UPDATE STREAMS SET STREAM_STATUS = 'INACTIVE' WHERE STREAM_ID = " + str(check[0][0]) )
             con.commit()
-            sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
-            cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
-            con.commit()
-            print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
-            opt = raw_input('Press 1 to quit: ')
-            if opt == "1":
-                return None
-        
+            if albumonly == 'YES':
+                cur.execute('SELECT ITEM_ID FROM SONGS WHERE SONG_ID = ' + choice)
+                itemid = cur.fetchall()
+                itemid = str(itemid[0][0])
+                cur.execute('SELECT SONG_ID FROM SONGS WHERE ITEM_ID = ' + itemid)
+                #get album
+                album = cur.fetchall()
+                #Store last song, then gather all songs but the last.
+                lastsong = album[-1]
+                lastsong = str(lastsong[0])
+                songs = album[:-1]
+                for song in songs:
+                    cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + str(song[0]))
+                    info = cur.fetchall()
+                    info = info[0]
+                    sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+                    cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(song[0]))
+                    con.commit()
+                    print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
+                    cur.execute('SELECT STREAM_ID FROM STREAMS WHERE CUSTOMER_ID = ' + self.id + " and STREAM_STATUS = 'ACTIVE'")
+                    check = cur.fetchall()
+                    cur.execute("UPDATE STREAMS SET STREAM_STATUS = 'INACTIVE' WHERE STREAM_ID = " + str(check[0][0]) )
+                    con.commit()
+                    s_id += 1
+                songs = songs[-1]
+                cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + lastsong)
+                info = cur.fetchall()
+                #extract tuple from list.
+                info = info[0]
+
+                sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+                cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(lastsong))
+                con.commit()
+                print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
+                print '(1) Main Menu (2) Play Another Song (3) Exit'
+                opt = raw_input('Select: ')
+                if opt == "1":
+                    self.menu()
+                    return None
+                if opt == "2":
+                    self.play()
+                    return None
+                if opt == "3":
+                    return None
+            else:
+                sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
+                cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
+                con.commit()
+                print 'Now playing %s, on %s, by %s' % (info[0],info[2],info[3])
+                print '(1) Main Menu (2) Play Another Song (3) Exit'
+                opt = raw_input('Select: ')
+                if opt == "1":
+                    self.menu()
+                    return None
+                if opt == "2":
+                    self.play()
+                    return None
+                if opt == "3":
+                    return None
+
 def main():
     print '***'
     print "Welcome to Groovy-Pandorify-Shark!"
