@@ -4,7 +4,6 @@ con = cx_Oracle.connect('dah3227_om/Oradah3227@//net6.cs.utexas.edu:1521/orcl')
 cur = con.cursor()
 
 class User:
-
     def __init__(self,login,password):
         self.login = login
         self.password = password
@@ -15,6 +14,7 @@ class User:
         for i in info:
             if i[0] == self.login and i[1] == self.password:
                 self.id = str(i[2])
+                self.audit = audit(self.id)
                 return True
             else:
                 pass
@@ -118,8 +118,10 @@ class User:
                     opt = raw_input("Are you sure you want to choose this plan?: ")
                     if opt == "1":
                         cur.execute('UPDATE CUSTOMERS SET CUSTOMER_PLAN = ' + '\''+plans[0]+'\'' + 'WHERE CUSTOMER_ID =' + self.id)
-                        print ('Plan Successfully changed.')
                         con.commit()
+                        cur.execute('DELETE FROM DAILY WHERE CUSTOMER_ID =' + self.id)
+                        con.commit()
+                        print ('*** Plan Successfully changed. ***')
                         self.plan()
                         return None
                     else:
@@ -139,6 +141,8 @@ class User:
                     opt = raw_input("Are you sure you want to choose this plan?: ")
                     if opt == "1":
                         cur.execute('UPDATE CUSTOMERS SET CUSTOMER_PLAN = ' + '\''+plans[1]+'\'' + 'WHERE CUSTOMER_ID =' + self.id)
+                        con.commit()
+                        cur.execute('DELETE FROM DAILY WHERE CUSTOMER_ID =' + self.id)
                         con.commit()
                         print ('Plan Successfully changed.')
                         self.plan()
@@ -197,6 +201,21 @@ class User:
                 lastsong = album[-1]
                 lastsong = str(lastsong[0])
                 songs = album[:-1]
+                tally = len(album)
+
+                #use audit to check if songs can be played
+                if self.audit.add(tally):
+                    pass
+                else:
+                    print 'Sorry, Playing This Song Would Exceed your Daily Limit!'
+                    print '(1) Main Menu (2) Exit'
+                    opt = raw_input('Select: ')
+                    if opt == "1":
+                        self.menu()
+                        return None
+                    if opt == "2":
+                        return None
+
                 for song in songs:
                     cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + str(song[0]))
                     info = cur.fetchall()
@@ -235,6 +254,19 @@ class User:
                     return None
 
             else:
+                tally = 1
+                if self.audit.add(tally):
+                    pass
+                else:
+                    print 'Sorry, You Have No More Plays Available Today!'
+                    print '(1) Main Menu (2) Exit'
+                    opt = raw_input('Select: ')
+                    if opt == "1":
+                        self.menu()
+                        return None
+                    if opt == "2":
+                        return None
+
                 sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
                 cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
                 con.commit()
@@ -264,6 +296,21 @@ class User:
                 lastsong = album[-1]
                 lastsong = str(lastsong[0])
                 songs = album[:-1]
+                tally = len(album)
+
+                #use audit to check if songs can be played
+                if self.audit.add(tally):
+                    pass
+                else:
+                    print 'Sorry, You Have No More Plays Available Today!'
+                    print '(1) Main Menu (2) Exit'
+                    opt = raw_input('Select: ')
+                    if opt == "1":
+                        self.menu()
+                        return None
+                    if opt == "2":
+                        return None
+
                 for song in songs:
                     cur.execute('SELECT s.song_name, i.item_id, i.title, i.artist, s.song_album_only from songs s left join items i on s.item_id = i.item_id where song_id = ' + str(song[0]))
                     info = cur.fetchall()
@@ -298,6 +345,19 @@ class User:
                 if opt == "3":
                     return None
             else:
+                tally = 1
+                if self.audit.add(tally):
+                    pass
+                else:
+                    print 'Sorry, You Have No More Plays Available Today!'
+                    print '(1) Main Menu (2) Exit'
+                    opt = raw_input('Select: ')
+                    if opt == "1":
+                        self.menu()
+                        return None
+                    if opt == "2":
+                        return None
+
                 sql = "INSERT INTO STREAMS VALUES (:s_id, :self_id, :choice, 'ACTIVE')"
                 cur.execute(sql, s_id=s_id,self_id=int(self.id),choice=int(choice))
                 con.commit()
@@ -313,6 +373,72 @@ class User:
                 if opt == "3":
                     return None
 
+class audit:
+    def __init__(self,id):
+        if id == 0:
+            pass
+        else:
+            self.id = id
+            self.custid = self.id
+            cur.execute('SELECT C.CUSTOMER_ID, C.CUSTOMER_PLAN, P.PLAN_PLAYS FROM CUSTOMERS C LEFT JOIN PLANS P ON C.CUSTOMER_PLAN = P.PLAN_NAME WHERE CUSTOMER_ID = ' + self.custid)
+            self.limit = cur.fetchall()
+            self.limit = self.limit[0][2]
+
+    def daycheck(self):
+        print 'day check running'
+        cur.execute('SELECT CURRENT_DATE FROM DUAL')
+        today = cur.fetchall()
+        print today 
+        cur.execute('SELECT TODAY FROM DAILY WHERE DAILY_ID = 1')
+        check = cur.fetchall()
+        print check
+        if today != check:
+            cur.execute('TRUNCATE TABLE DAILY')
+            con.commit()
+            cur.execute('INSERT INTO DAILY VALUES (1,0,0,CURRENT_DATE)')
+            con.commit()
+            print 'Days checked!'
+            return None
+        else:
+            return None
+    # fetches number of total daily plays
+    def fetch_plays(self):
+        cur.execute('SELECT DAILY_PLAYS FROM DAILY WHERE CUSTOMER_ID = ' + self.custid)
+        plays = cur.fetchall()
+        if len(plays) == 0:
+            return 0
+        else:
+            plays = plays[0][0]
+            return plays
+
+
+    def add(self, n):
+        #id of the customer_id and n is the number of plays)
+        cur.execute('SELECT DAILY_ID FROM DAILY WHERE DAILY_ID = (SELECT MAX(DAILY_ID) FROM DAILY)')
+        d_id = cur.fetchall()
+        d_id = d_id[0][0] + 1
+        d_id = str(d_id)
+
+
+        if (self.fetch_plays() + n) < self.limit:
+            cur.execute('SELECT * FROM DAILY WHERE CUSTOMER_ID = ' + self.custid)
+            info = cur.fetchall()
+            if len(info) == 0:
+                sql = "INSERT INTO DAILY VALUES(:DAILY_ID,:CUSTOMER_ID,:DAILY_PLAYS,CURRENT_DATE)"
+                cur.execute(sql,DAILY_ID=d_id,CUSTOMER_ID=self.custid,DAILY_PLAYS=n)
+                con.commit()
+                return True
+            else:
+                sql = "UPDATE DAILY SET DAILY_PLAYS = (DAILY_PLAYS + :n ) WHERE CUSTOMER_ID =:id"
+                cur.execute(sql,n=str(n),id=self.custid)
+                con.commit()
+                return True
+        else:
+            return False
+            
+
+
+
 def main():
     print '***'
     print "Welcome to Groovy-Pandorify-Shark!"
@@ -320,6 +446,9 @@ def main():
     password = raw_input("Password: ")
     print '***'
     u = User(username,password)
+    #ping server to verify date
+    ping = audit(0)
+    ping.daycheck()
     if u.connect():
         print '___________________________'
         print '*** - Login Succesful - ***'
